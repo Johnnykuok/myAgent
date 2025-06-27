@@ -14,6 +14,10 @@ GAODE_API_KEY = "c8c31e524a0aaa6297ce0cf4a684059e"
 WEATHER_URL = "https://restapi.amap.com/v3/weather/weatherInfo"
 
 
+# 网络搜索API配置
+SEARCH_API_URL = "https://api.bochaai.com/v1/web-search"
+SEARCH_API_KEY = "sk-5635f459fa3c4e31b4a835678597649e"
+
 # 定义天气查询工具
 tools = [
     {
@@ -42,6 +46,23 @@ tools = [
                 "type": "object",
                 "properties": {},
                 "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "当且仅当用户需要搜索网络信息或最新资讯时，进行网络搜索",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "搜索关键词或问题"
+                    }
+                },
+                "required": ["query"]
             }
         }
     }
@@ -90,6 +111,44 @@ def get_current_time():
     except Exception as e:
         return json.dumps({"status": "error", "message": f"获取时间失败: {str(e)}"})
 
+def web_search(query):
+    """调用网络搜索API"""
+    payload = json.dumps({
+        "query": query,
+        "summary": True,
+        "count": 2
+    })
+    
+    headers = {
+        'Authorization': f'Bearer {SEARCH_API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    
+    try:
+        response = requests.post(SEARCH_API_URL, headers=headers, data=payload)
+        result = response.json()
+        
+        if result.get("code") == 200 and result.get("data"):
+            data = result["data"]
+            web_pages = data.get("webPages", {}).get("value", [])
+            
+            search_results = []
+            for page in web_pages:
+                summary = page.get("summary", "")
+                if summary:
+                    search_results.append(summary)
+            
+            return json.dumps({
+                "status": "success",
+                "query": query,
+                "results": search_results
+            }, ensure_ascii=False)
+        else:
+            return json.dumps({"status": "error", "message": "搜索失败或无结果"})
+            
+    except Exception as e:
+        return json.dumps({"status": "error", "message": f"网络搜索请求失败: {str(e)}"})
+
 def run_agent(user_input):
     """运行智能体对话"""
     messages = [{"role": "system", "content":"你是由郭桓君同学开发的智能体。你的人设是一个讲话活泼可爱、情商高的小妹妹"},
@@ -134,6 +193,18 @@ def run_agent(user_input):
                         "name": function_name,
                         "content": time_info
                     })
+                elif function_name == "web_search":
+                    # 解析参数并调用网络搜索
+                    args = json.loads(tool_call.function.arguments)
+                    search_info = web_search(args["query"])
+                    
+                    # 添加工具响应到消息历史
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": function_name,
+                        "content": search_info
+                    })
         else:
             # 没有工具调用时返回最终回复
             return message.content.strip()
@@ -149,4 +220,3 @@ if __name__ == "__main__":
             
         response = run_agent(user_input)
         print(f"助手: {response}")
-
