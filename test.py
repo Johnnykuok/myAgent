@@ -13,6 +13,7 @@ client = OpenAI(
 GAODE_API_KEY = "c8c31e524a0aaa6297ce0cf4a684059e"
 WEATHER_URL = "https://restapi.amap.com/v3/weather/weatherInfo"
 
+
 # 定义天气查询工具
 tools = [
     {
